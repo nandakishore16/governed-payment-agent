@@ -193,6 +193,12 @@ def capture_payment(order_id: str) -> dict:
         return {"decision": "deny", "reason": "Unknown order: not created through the governed flow."}
     r = requests.get(f"{BASE}/v2/checkout/orders/{order_id}", headers=_headers(), timeout=30)
     status = r.json().get("status")
+    if status == "COMPLETED":
+        c = r.json()["purchase_units"][0]["payments"]["captures"][0]
+        amount = float(c["amount"]["value"])
+        record("capture_payment", amount, "allow", "already captured", c["id"])
+        return {"decision": "allow", "status": "COMPLETED", "capture_id": c["id"],
+                "amount": amount, "message": "Order is already captured; payment complete."}
     if status != "APPROVED":
         record("capture_payment", None, "blocked", f"order status is {status}", order_id)
         return {"decision": "blocked", "status": status,
